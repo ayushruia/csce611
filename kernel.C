@@ -28,9 +28,9 @@
 #define MEM_HOLE_SIZE ((1 MB) / (4 KB))
 /* we have a 1 MB hole in physical memory starting at address 15 MB */
 
-#define FAULT_ADDR (4 MB)
+#define FAULT_ADDR (23 MB)
 /* used in the code later as address referenced to cause page faults. */
-#define NACCESS ((1 MB) / 4)
+#define NACCESS ((10 MB) / 4)
 /* NACCESS integer access (i.e. 4 bytes in each access) are made starting at address FAULT_ADDR */
 
 /*--------------------------------------------------------------------------*/

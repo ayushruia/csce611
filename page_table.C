@@ -26,20 +26,24 @@ PageTable::PageTable()
     unsigned long page_tab = (PageTable::process_mem_pool->get_frame()); //holds the page table
     unsigned long *page_table;
     unsigned long address=0; // holds the physical address of where a page is
+    Console::puts("\nAddress of the page directory is ");
+    Console::putui(page_dir);
     page_dir <<=12; //bit shifting to get the physical address
     page_tab <<=12; //bit shifting to get the physical address
+    Console::puts("\nAddress of the page directory is after shift ");
+    Console::putui(page_dir);
     page_directory = (unsigned long *) page_dir;
     page_table = (unsigned long *) page_tab;
     page_directory[0] = page_tab | 3; //setting the value in the page directory to present and supervisor
     // map the first 4MB of memory
-    for(unsigned int i=0; i<PageTable::PAGE_SIZE; i++)
+    for(unsigned int i=0; i<PageTable::ENTRIES_PER_PAGE; i++)
     {
         page_table[i] = address | 3; // attribute set to: supervisor level, read/write, present(011 in binary)
         address = address + 4096; // 4096 = 4kb
     }
     for(unsigned int i=1; i<PageTable::ENTRIES_PER_PAGE-1; i++)
     {
-        page_directory[i] = 0|2;
+        page_directory[i] = 0;
     }
     page_directory[PageTable::ENTRIES_PER_PAGE-1] = page_dir | 3; // implementing recursive lookup
     //Console::puts("exiting constructor\n");
@@ -75,10 +79,7 @@ void PageTable::handle_fault(REGS * _r)
     unsigned long pt_frame;
     unsigned int fld_val;
     unsigned long *page_d;
-    unsigned long page_d_map = (PageTable::ENTRIES_PER_PAGE-1)<<12;
-    page_d_map = (page_d_map) | (page_d_map << 10);
-    Console::puti(page_d_map);
-    Console::puts(" This is in the page fault handler\n");
+    unsigned long page_d_map = add_bitmask;
     page_d = (unsigned long *) page_d_map;
     if((error_code & 1) == 0)   //page not present
     {
@@ -86,7 +87,6 @@ void PageTable::handle_fault(REGS * _r)
         page_tb = (unsigned long *)((pd_bitmask)|(pd_index<<12));
         if((page_d[pd_index] & 1) == 1)     //page directory is present
         {
-            Console::puts("Page directory is present \n");
             pt_frame = PageTable::process_mem_pool->get_frame();
             pt_frame <<=12;
             fld_val = (error_code&4>0)?7:3;
@@ -96,7 +96,6 @@ void PageTable::handle_fault(REGS * _r)
         }
         else        //page directory not present
         {
-            Console::puts("Page directory is not present \n");
             pd_frame = PageTable::process_mem_pool->get_frame();
             pd_frame <<=12;
             fld_val = (error_code&4>0)?7:3; //checking for kernel memory fault or user memory fault
