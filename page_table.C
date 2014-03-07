@@ -22,8 +22,8 @@ void PageTable::init_paging(FramePool * _kernel_mem_pool, FramePool * _process_m
 
 PageTable::PageTable()
 {
-    unsigned long page_dir = (PageTable::kernel_mem_pool->get_frame()); //holds the page directory address
-    unsigned long page_tab = (PageTable::kernel_mem_pool->get_frame()); //holds the page table
+    unsigned long page_dir = (PageTable::process_mem_pool->get_frame()); //holds the page directory address
+    unsigned long page_tab = (PageTable::process_mem_pool->get_frame()); //holds the page table
     unsigned long *page_table;
     unsigned long address=0; // holds the physical address of where a page is
     page_dir <<=12; //bit shifting to get the physical address
@@ -37,10 +37,11 @@ PageTable::PageTable()
         page_table[i] = address | 3; // attribute set to: supervisor level, read/write, present(011 in binary)
         address = address + 4096; // 4096 = 4kb
     }
-    for(unsigned int i=1; i<PageTable::ENTRIES_PER_PAGE; i++)
+    for(unsigned int i=1; i<PageTable::ENTRIES_PER_PAGE-1; i++)
     {
         page_directory[i] = 0|2;
     }
+    page_directory[PageTable::ENTRIES_PER_PAGE-1] = page_dir | 3; // implementing recursive lookup
     //Console::puts("exiting constructor\n");
 }
 
@@ -68,36 +69,41 @@ void PageTable::handle_fault(REGS * _r)
     const unsigned long pd_bitmask = 0xffc00000;
     const unsigned long add_bitmask = 0xfffff000;
     unsigned long *page_tb;
-    unsigned long *page_d = (unsigned long *)read_cr3();
     unsigned int error_code = (_r->err_code&7);
     unsigned long pf_address = read_cr2();
     unsigned long pd_frame;
     unsigned long pt_frame;
     unsigned int fld_val;
+    unsigned long *page_d;
+    unsigned long page_d_map = (PageTable::ENTRIES_PER_PAGE-1)<<12;
+    page_d_map = (page_d_map) | (page_d_map << 10);
+    Console::puti(page_d_map);
+    Console::puts(" This is in the page fault handler\n");
+    page_d = (unsigned long *) page_d_map;
     if((error_code & 1) == 0)   //page not present
     {
         pd_index = pf_address>>22;
+        page_tb = (unsigned long *)((pd_bitmask)|(pd_index<<12));
         if((page_d[pd_index] & 1) == 1)     //page directory is present
         {
+            Console::puts("Page directory is present \n");
             pt_frame = PageTable::process_mem_pool->get_frame();
             pt_frame <<=12;
             fld_val = (error_code&4>0)?7:3;
             pt_frame |=fld_val;
-            page_tb = (unsigned long *)(page_d[pd_index]&add_bitmask);
             pt_index = (pf_address&pt_bitmask)>>12;
             page_tb[pt_index] = pt_frame;
         }
         else        //page directory not present
         {
-            pd_frame = PageTable::kernel_mem_pool->get_frame();
+            Console::puts("Page directory is not present \n");
+            pd_frame = PageTable::process_mem_pool->get_frame();
             pd_frame <<=12;
-            page_tb = (unsigned long *)pd_frame;
             fld_val = (error_code&4>0)?7:3; //checking for kernel memory fault or user memory fault
             pd_frame |=fld_val;
             page_d[pd_index] = pd_frame;
             pt_frame = PageTable::process_mem_pool->get_frame();
             pt_frame <<=12;
-            fld_val = (error_code&4>0)?7:3;
             pt_frame |=fld_val;
             pt_index = (pf_address&pt_bitmask)>>12;
             for(int i=0;i<1024;i++)
