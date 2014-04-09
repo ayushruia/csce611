@@ -36,6 +36,9 @@
 /* -- THREAD FUNCTION (CALLED WHEN THREAD STARTS RUNNING) */
 typedef void (*Thread_Function)();
 
+class Scheduler;
+extern Scheduler * SYSTEM_SCHEDULER;
+
 /*--------------------------------------------------------------------------*/
 /* THREAD CONTROL BLOCK */
 /*--------------------------------------------------------------------------*/
