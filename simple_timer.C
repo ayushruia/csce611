@@ -23,7 +23,9 @@
 #include "console.H"
 #include "interrupts.H"
 #include "simple_timer.H"
+#include "thread.H"
 
+#define IRQ_BASE 32
 /*--------------------------------------------------------------------------*/
 /* CONSTRUCTOR */
 /*--------------------------------------------------------------------------*/
@@ -55,13 +57,23 @@ void SimpleTimer::handle_interrupt(REGS *_r) {
 
     /* Increment our "ticks" count */
     ticks++;
+    unsigned int int_no = _r->int_no - IRQ_BASE;
+    //Console::puts("\nInterrupt passed"); 
+     /* Whenever a second is over, we update counter accordingly. */
+     if (ticks >= hz )
+     {
+         seconds++;
+         ticks = 0;
+         Console::puts("50 millisecond has passed\n");
+        if (int_no>7) {
+            outportb(0xA0, 0x20);
+        }
 
-    /* Whenever a second is over, we update counter accordingly. */
-    if (ticks >= hz )
-    {
-        seconds++;
-        ticks = 0;
-        Console::puts("One second has passed\n");
+        /* Send an EOI message to the master interrupt controller. */
+        outportb(0x20, 0x20);
+        SYSTEM_SCHEDULER->resume(Thread::CurrentThread());
+        SYSTEM_SCHEDULER->yield();
+
     }
 }
 

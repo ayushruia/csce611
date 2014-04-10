@@ -33,9 +33,9 @@
 #include "console.H"
 
 #include "frame_pool.H"
-
 #include "thread.H"
 
+#include "machine.H"
 #include "threads_low.H"
 #include "scheduler.H"
 
@@ -74,7 +74,7 @@ static void thread_shutdown() {
        It terminates the thread by releasing memory and any other resources held by the thread. 
        This is a bit complicated because the thread termination interacts with the scheduler.
      */
-    SYSTEM_SCHEDULER->terminate(0);
+    SYSTEM_SCHEDULER->terminate(Thread::CurrentThread());
 
     assert(FALSE);
     /* Let's not worry about it for now. 
@@ -203,6 +203,8 @@ void Thread::dispatch_to(Thread * _thread) {
     /* The value of 'current_thread' is modified inside 'threads_low_switch_to()'. */
 
     threads_low_switch_to(_thread);
+    if(!Machine::interrupts_enabled())
+        Machine::enable_interrupts();
 
     /* The call does not return until after the thread is context-switched back in. */
 }
