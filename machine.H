@@ -1,16 +1,12 @@
 /* 
-    File: machine.H
+    File: machine.h
 
     Author: R. Bettati
             Department of Computer Science
             Texas A&M University
-    Date  : 12/09/05
+    Date  : 09/03/05
 
-    Description: Low-level definitions for x86 architecture.
-
-        - Register context
-        - Data and code segment for kernel. 
-        - Interrupt enable/disable.
+    Description: low-level definitions. 
 
 */
 
@@ -21,7 +17,16 @@
 /* DEFINES */
 /*--------------------------------------------------------------------------*/
 
-/* -- (none) -- */
+/* Data and code segment for kernel */
+
+#define KERNEL_DS 0x10
+#define KERNEL_CS 0x08
+
+
+/* Memory Management */
+
+#define PAGE_SIZE 4096
+#define PT_ENTRIES_PER_PAGE 1024
 
 /*--------------------------------------------------------------------------*/
 /* INCLUDES */
@@ -76,35 +81,20 @@ typedef struct regs {
  
 
 /*--------------------------------------------------------------------------*/
-/* CLASS   M a c h i n e */
+/* EXPORTED FUNCTIONS */ 
 /*--------------------------------------------------------------------------*/
 
-class Machine {
+/*
+ Manage interrupts. This is done by checking the Interrupt Enabled flag in the 
+ EFLAG status register and by issuing STI/CLI instructions.
+ (NOTE: If we have multiple threads, each has its own status register.)
+*/
 
-public:
-  
-  /* Data and code segment for kernel */
+extern int machine_interrupts_enabled();
+/* Returns FALSE if interrupts are disabled, and (1<<9) if they are enabled. */
 
-  static const int KERNEL_DS = 0x10;
-  static const int KERNEL_CS = 0x08;
+extern void machine_enable_interrupts();
+extern void machine_disable_interrupts();
+/* Issue CLI/STI instructions. */
 
-  /* Memory Management */
-
-  static const unsigned int PAGE_SIZE = 4096;
-  static const unsigned int PT_ENTRIES_PER_PAGE = 1024;
-
-  /*
-   Manage interrupts. This is done by checking the Interrupt Enabled flag in the 
-   EFLAG status register and by issuing STI/CLI instructions.
-   (NOTE: If we have multiple threads, each has its own status register.)
-  */
-
-  static int interrupts_enabled();
-  /* Returns FALSE if interrupts are disabled, and (1<<9) if they are enabled. */
-
-  static void enable_interrupts();
-  static void disable_interrupts();
-  /* Issue CLI/STI instructions. */
-
-};
 #endif

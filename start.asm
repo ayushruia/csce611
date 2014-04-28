@@ -39,12 +39,43 @@ mboot:
     dd end
     dd start
 
-; This is an endless loop here. Make a note of this: Later on, we
-; will insert an 'extern _main', followed by 'call _main', right
-; before the 'jmp $'.
 stublet:
+; Initilization of static global objects. This goes through each object 
+; in the ctors section of the object file, where the global constructors 
+; created by C++ are put, and calls it. Normally C++ compilers add some code
+; to do this, but that code is in the standard library - which we do not include.
+; See linker.ld to see where we tell the linker to put them.
+    extern start_ctors, end_ctors, start_dtors, end_dtors
+
+    static_ctors_loop:
+       mov ebx, start_ctors
+       jmp .test
+    .body:
+       call [ebx]
+       add ebx,4
+    .test:
+       cmp ebx, end_ctors
+       jb .body
+
+; Entering the kernel proper.   
     extern _main
     call _main
+
+; Deinitialization of static global objects. This goes through each object 
+; in the dtors section of the object file, where the global destructors 
+; created by C++ are put, and calls it. Normally C++ compilers add some code
+; to do this, but that code is in the standard library - which we do not include.
+; See linker.ld to see where we tell the linker to put them.
+    static_dtors_loop:
+        mov ebx, start_dtors
+        jmp .test
+    .body:
+        call [ebx]
+        add ebx,4
+    .test:
+        cmp ebx, end_dtors
+        jb .body
+    
     jmp $
 
 ; Global Descriptor Table

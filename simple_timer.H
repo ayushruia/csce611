@@ -6,11 +6,6 @@
             Texas A&M University
     Date  : 09/03/19
 
-    This is a simple example of a hardware interrupt handler.
-    As an example, this implements a timer, which in turn 
-    triggers a function to be called at the given frequency.
-    The function is implemented in 'handle_interrupt'.
-
 */
 
 #ifndef _SIMPLE_TIMER_H_
@@ -27,12 +22,10 @@
 /*--------------------------------------------------------------------------*/
 
 #include "interrupts.H"
-#include "scheduler.H"
 
 /*--------------------------------------------------------------------------*/
 /* S I M P L E   T I M E R  */
 /*--------------------------------------------------------------------------*/
-extern Scheduler * SYSTEM_SCHEDULER;
 
 class SimpleTimer : public InterruptHandler {
 

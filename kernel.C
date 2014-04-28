@@ -1,20 +1,17 @@
-/*
+/* 
     File: kernel.C
 
     Author: R. Bettati
             Department of Computer Science
             Texas A&M University
-    Date  : 11/10/25
+    Date  : 09/05/04
 
 
     This file has the main entry point to the operating system.
 
-    MAIN FILE FOR MACHINE PROBLEM "KERNEL-LEVEL THREAD MANAGEMENT"
+    MAIN FILE FOR MACHINE PROBLEM "KERNEL-LEVEL DEVICE MANAGEMENT
+    AND SIMPLE FILE SYSTEM"
 
-    NOTE: REMEMBER THAT AT THE VERY BEGINNING WE DON'T HAVE A MEMORY MANAGER. 
-          OBJECT THEREFORE HAVE TO BE ALLOCATED ON THE STACK. 
-          THIS LEADS TO SOME RATHER CONVOLUTED CODE, WHICH WOULD BE MUCH 
-          SIMPLER OTHERWISE.
 */
 
 /*--------------------------------------------------------------------------*/
@@ -24,19 +21,23 @@
 /* -- COMMENT/UNCOMMENT THE FOLLOWING LINE TO EXCLUDE/INCLUDE SCHEDULER CODE */
 
 #define _USES_SCHEDULER_
-/* This macro is defined when we want to force the code below to use
+/* This macro is defined when we want to force the code below to use 
    a scheduler.
-   Otherwise, no scheduler is used, and the threads pass control to each
+   Otherwise, no scheduler is used, and the threads pass control to each 
    other in a co-routine fashion.
 */
 
+#define _USES_DISK_
+/* This macro is defined when we want to exercise the disk device.
+   If defined, the system defines a disk and has Thread 2 read from it.
+   Leave the macro undefined if you don't want to exercise the disk code.
+*/
 
-/* -- UNCOMMENT THE FOLLOWING LINE TO MAKE THREADS TERMINATING */
-
-#define _TERMINATING_FUNCTIONS_
-/* This macro is defined when we want the thread functions to return, and so
-   terminate their thread.
-   Otherwise, the thread functions don't return, and the threads run forever.
+//#define _USES_FILESYSTEM_
+/* This macro is defined when we want to exercise file-system code.
+   If defined, the system defines a file system, and Thread 3 issues 
+   issues operations to it.
+   Leave the macro undefined if you don't want to exercise file system code.
 */
 
 /*--------------------------------------------------------------------------*/
@@ -48,7 +49,7 @@
 #include "gdt.H"
 #include "idt.H"             /* EXCEPTION MGMT.   */
 #include "irq.H"
-#include "exceptions.H"    
+#include "exceptions.H"     
 #include "interrupts.H"
 
 #include "simple_timer.H"    /* TIMER MANAGEMENT  */
@@ -56,11 +57,30 @@
 #include "frame_pool.H"      /* MEMORY MANAGEMENT */
 #include "mem_pool.H"
 
-#include "thread.H"          /* THREAD MANAGEMENT */
+#include "thread.H"         /* THREAD MANAGEMENT */
 
 #ifdef _USES_SCHEDULER_
 #include "scheduler.H"
 #endif
+
+#ifdef _USES_DISK_
+#include "simple_disk.H"
+#endif
+
+#ifdef _USES_FILESYSTEM_
+#include "file_system.H"
+#endif
+
+void delay(unsigned int no_100ms)
+{
+    for(unsigned int i=0; i < no_100ms; i++)
+    {
+        unsigned int max = 2000000;
+        for(unsigned j=0; j < max; j++);
+            //Console::puti(i);
+    }
+}
+unsigned char buffer[] = "123456789012345678901234567890123456879012345678901245689012398469120479108470194709174091741094710947901409141709191190478091287409182740918720498712094870918740918274091728437120498711111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111111112";
 
 /*--------------------------------------------------------------------------*/
 /* MEMORY MANAGEMENT */
@@ -84,6 +104,30 @@ Scheduler * SYSTEM_SCHEDULER;
 #endif
 
 /*--------------------------------------------------------------------------*/
+/* DISK */
+/*--------------------------------------------------------------------------*/
+
+#ifdef _USES_DISK_
+
+/* -- A POINTER TO THE SYSTEM DISK */
+SimpleDisk * SYSTEM_DISK;
+
+#define SYSTEM_DISK_SIZE 10485760
+
+#endif
+
+/*--------------------------------------------------------------------------*/
+/* FILE SYSTEM */
+/*--------------------------------------------------------------------------*/
+
+#ifdef _USES_FILESYSTEM_
+
+/* -- A POINTER TO THE SYSTEM FILE SYSTEM */
+FileSystem * FILE_SYSTEM;
+
+#endif
+
+/*--------------------------------------------------------------------------*/
 /* JUST AN AUXILIARY FUNCTION */
 /*--------------------------------------------------------------------------*/
 
@@ -93,7 +137,7 @@ void pass_on_CPU(Thread * _to_thread) {
 
         /* We don't use a scheduler. Explicitely pass control to the next
            thread in a co-routine fashion. */
-	Thread::dispatch_to(_to_thread);
+	Thread::dispatch_to(_to_thread); 
 
 #else
 
@@ -101,10 +145,35 @@ void pass_on_CPU(Thread * _to_thread) {
            we pre-empt the current thread by putting it onto the ready
            queue and yielding the CPU. */
 
-        SYSTEM_SCHEDULER->resume(Thread::CurrentThread());
+        SYSTEM_SCHEDULER->resume(Thread::CurrentThread()); 
         SYSTEM_SCHEDULER->yield();
 #endif
 }
+
+
+/*--------------------------------------------------------------------------*/
+/* CODE TO EXERCISE THE FILE SYSTEM */
+/*--------------------------------------------------------------------------*/
+
+#ifdef _USES_FILESYSTEM_
+
+int rand() {
+  /* Rather silly random number generator. */
+
+  unsigned long dummy_sec;
+  int           dummy_tic;
+
+  SimpleTimer::current(dummy_sec, dummy_tic);
+
+  return dummy_tic;
+}
+
+void exercise_file_system(FileSystem * _file_system, SimpleDisk * _simple_disk) {
+  /* NOTHING FOR NOW. 
+     FEEL FREE TO ADD YOUR OWN CODE. */
+}
+
+#endif
 
 /*--------------------------------------------------------------------------*/
 /* A FEW THREADS (pointer to TCB's and thread functions) */
@@ -115,68 +184,127 @@ Thread * thread2;
 Thread * thread3;
 Thread * thread4;
 
-/* -- THE 4 FUNCTIONS fun1 - fun4 ARE LARGELY IDENTICAL. */
-
 void fun1() {
-    Console::puts("Thread: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
+    Console::puts("THREAD: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
+
     Console::puts("FUN 1 INVOKED!\n");
 
-#ifdef _TERMINATING_FUNCTIONS_
-    for(int j = 0; j < 10; j++) 
-#else
-    for(int j = 0;; j++) 
+    for(int j = 0;; j++) {
+
+       Console::puts("FUN 1 IN ITERATION["); Console::puti(j); Console::puts("]\n");
+
+       for (int i = 0; i < 10; i++) {
+	  Console::puts("FUN 1: TICK ["); Console::puti(i); Console::puts("]\n");
+       }
+#ifdef DELAY_INS
+       delay(4);
 #endif
-    {	
-        Console::puts("FUN 1 IN BURST["); Console::puti(j); Console::puts("]\n");
-        for (int i = 0; i < 10; i++) {
-            Console::puts("FUN 1: TICK ["); Console::puti(i); Console::puts("]\n");
-        }
-        pass_on_CPU(thread2);
+
+       pass_on_CPU(thread2);
     }
 }
 
 
+
 void fun2() {
-    Console::puts("Thread: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
+    Console::puts("THREAD: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
+
     Console::puts("FUN 2 INVOKED!\n");
 
-#ifdef _TERMINATING_FUNCTIONS_
-    for(int j = 0; j < 10; j++) 
+#ifdef _USES_DISK_
+    unsigned char buf[512];
+    int  read_block  = 1;
+    int  write_block = 0;
+#endif
+
+    for(int j = 0;; j++) {
+
+       Console::puts("FUN 2 IN ITERATION["); Console::puti(j); Console::puts("]\n");
+
+#ifdef _USES_DISK_
+       /* -- Read */
+       Console::puts("Reading a block from disk...\n");
+       /* UNCOMMENT THE FOLLOWING LINE IN FINAL VERSION. */
+       SYSTEM_DISK->read(read_block, buf);
+
+       /* -- Display */
+       int i;
+       for (i = 0; i < 512; i++) {
+	  Console::putch(buf[i]);
+       }
+
+#ifndef _USES_FILESYSTEM_
+       /* -- Write -- ONLY IF THERE IS NO FILE SYSTEM BEING EXERCISED! */
+       /*             Running this piece of code on a disk with a      */
+       /*             file system would corrupt the file system.       */
+
+       Console::puts("Writing a block to disk...\n");
+       /* UNCOMMENT THE FOLLOWING LINE IN FINAL VERSION. */
+       SYSTEM_DISK->write(write_block, buffer); 
+#endif
+
+       /* -- Move to next block */
+       write_block = read_block;
+       read_block  = (read_block + 1) % 10;
 #else
-    for(int j = 0;; j++) 
-#endif  
-    {		
-        Console::puts("FUN 2 IN BURST["); Console::puti(j); Console::puts("]\n");
-        for (int i = 0; i < 10; i++) {
-            Console::puts("FUN 2: TICK ["); Console::puti(i); Console::puts("]\n");
-        }
-        pass_on_CPU(thread3);
+
+       for (int i = 0; i < 10; i++) {
+	  Console::puts("FUN 2: TICK ["); Console::puti(i); Console::puts("]\n");
+       }
+     
+#endif
+
+#ifdef DELAY_INS
+       delay(4);
+#endif
+       //delay(4);
+       /* -- Give up the CPU */
+       pass_on_CPU(thread3);
     }
 }
 
 void fun3() {
-    Console::puts("Thread: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
+    Console::puts("THREAD: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
+
     Console::puts("FUN 3 INVOKED!\n");
 
-    for(int j = 0;; j++) {
-        Console::puts("FUN 3 IN BURST["); Console::puti(j); Console::puts("]\n");
-        for (int i = 0; i < 10; i++) {
-	    Console::puts("FUN 3: TICK ["); Console::puti(i); Console::puts("]\n");
-        }
-        pass_on_CPU(thread4);
+#ifdef _USES_FILESYSTEM_
+
+    exercise_file_system(FILE_SYSTEM);
+
+#else
+
+     for(int j = 0;; j++) {
+
+       Console::puts("FUN 3 IN BURST["); Console::puti(j); Console::puts("]\n");
+
+       for (int i = 0; i < 10; i++) {
+	  Console::puts("FUN 3: TICK ["); Console::puti(i); Console::puts("]\n");
+       }
+    
+#endif
+#ifdef DELAY_INS
+       delay(4);
+#endif
+       pass_on_CPU(thread4);
     }
 }
 
 void fun4() {
-    Console::puts("Thread: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
-    Console::puts("FUN 4 INVOKED!\n");
+    Console::puts("THREAD: "); Console::puti(Thread::CurrentThread()->ThreadId()); Console::puts("\n");
 
     for(int j = 0;; j++) {
-        Console::puts("FUN 4 IN BURST["); Console::puti(j); Console::puts("]\n");
-        for (int i = 0; i < 10; i++) {
-	    Console::puts("FUN 4: TICK ["); Console::puti(i); Console::puts("]\n");
-        }
-        pass_on_CPU(thread1);
+
+       Console::puts("FUN 4 IN BURST["); Console::puti(j); Console::puts("]\n");
+
+       for (int i = 0; i < 10; i++) {
+	  Console::puts("FUN 4: TICK ["); Console::puti(i); Console::puts("]\n");
+       }
+
+#ifdef DELAY_INS
+       delay(4);
+#endif
+       pass_on_CPU(thread1);
     }
 }
 
@@ -237,7 +365,6 @@ int main() {
 
     ExceptionHandler::register_handler(0, &dbz_handler);
 
-
     /* -- INITIALIZE MEMORY -- */
     /*    NOTE: We don't have paging enabled in this MP. */
     /*    NOTE2: This is not an exercise in memory management. The implementation
@@ -257,27 +384,46 @@ int main() {
                  we enable interrupts correctly. If we forget to do it,
                  the timer "dies". */
 
-    SimpleTimer timer(5); /* timer ticks every 10ms. */
+    SimpleTimer timer(100); /* timer ticks every 10ms. */
     InterruptHandler::register_handler(0, &timer);
     /* The Timer is implemented as an interrupt handler. */
 
 #ifdef _USES_SCHEDULER_
 
     /* -- SCHEDULER -- IF YOU HAVE ONE -- */
- 
+  
     Scheduler system_scheduler = Scheduler();
     SYSTEM_SCHEDULER = &system_scheduler;
 
 #endif
+   
+#ifdef _USES_DISK_
 
-    /* NOTE: The timer chip starts periodically firing as
+    /* -- DISK DEVICE -- IF YOU HAVE ONE -- */
+
+    SimpleDisk system_disk = SimpleDisk(MASTER, SYSTEM_DISK_SIZE);
+    SYSTEM_DISK = &system_disk;
+
+#endif
+
+#ifdef _USES_FILESYSTEM_
+
+     /* -- FILE SYSTEM  -- IF YOU HAVE ONE -- */
+
+     FileSystem file_system = FileSystem();
+     FILE_SYSTEM = &file_system;
+
+#endif
+
+
+    /* NOTE: The timer chip starts periodically firing as 
              soon as we enable interrupts.
-             It is important to install a timer handler, as we
-             would get a lot of uncaptured interrupts otherwise. */ 
+             It is important to install a timer handler, as we 
+             would get a lot of uncaptured interrupts otherwise. */  
 
     /* -- ENABLE INTERRUPTS -- */
 
-    Machine::enable_interrupts();
+    machine_enable_interrupts();
 
     /* -- MOST OF WHAT WE NEED IS SETUP. THE KERNEL CAN START. */
 
@@ -321,7 +467,7 @@ int main() {
     Thread::dispatch_to(thread1);
 
     /* -- AND ALL THE REST SHOULD FOLLOW ... */
-
+ 
     assert(FALSE); /* WE SHOULD NEVER REACH THIS POINT. */
 
     /* -- WE DO THE FOLLOWING TO KEEP THE COMPILER HAPPY. */

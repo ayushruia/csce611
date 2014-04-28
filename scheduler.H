@@ -22,14 +22,21 @@ A thread scheduler.
 
 #include "machine.H"
 #include "thread.H"
+#include "queue.H"
+#include "utils.H"
 
+//extern void * operator new(unsigned int);
 
-struct qapi
-{
-    unsigned int head;
-    unsigned int tail;
-};
-
+//struct qapi
+//{
+//    char * start_add;
+//    unsigned int head;
+//    unsigned int tail;
+//    unsigned int block_size;
+//    unsigned int max_size;
+//    unsigned int no_blocks;
+//};
+//
 
 /*--------------------------------------------------------------------------*/
 /* SCHEDULER
@@ -38,16 +45,16 @@ struct qapi
 class Scheduler {
 
     public:
-    Thread *thread_ptrs[MAX_THREADS];
-    struct qapi thrdq;
+    class Queue *ready_q;
+    class Queue *block_q;
+    BOOLEAN flag;
     unsigned int thread_count;
     /* The scheduler may need private members... */
 
 
     Scheduler();
     /* Setup the scheduler. This sets up the ready queue, for example.
-       If the scheduler implements some sort of round-robin scheme, then the 
-       end_of_quantum handler is installed here as well. */
+       If the scheduler implements some sort of round-robin scheme, then the the CPU in response to a preemption. */
 
     virtual void yield();
     /* Called by the currently running thread in order to give up the CPU. 
@@ -60,6 +67,10 @@ class Scheduler {
        for threads that were waiting for an event to happen, or that have 
        to give up the CPU in response to a preemption. */
 
+    virtual void wait(Thread * _thread);
+
+    virtual void reinsert(Thread * _thread);
+
     virtual void add(Thread * _thread);
     /* Make the given thread runnable by the scheduler. This function is called
        typically after thread creation. Depending on the
@@ -70,10 +81,14 @@ class Scheduler {
     /* Remove the given thread from the scheduler in preparation for destruction
        of the thread. */
 
-    int enqueue(struct qapi * qwrap, Thread *enqthread);
-    int dequeue(struct qapi * qwrap, Thread **deqthread);
+//    int enqueue(struct qapi * qwrap, char * enqthread);
+//    int dequeue(struct qapi * qwrap, char * deqthread);
+//    int pushqueue(struct qapi * qwrap, char * enqthread);
 
 };
+
+
+
 
 
 

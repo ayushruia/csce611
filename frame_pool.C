@@ -48,7 +48,7 @@ unsigned long FramePool::get_frame() {
 //  Console::puts("FramePool:next_free_frame = "); Console::putui(next_free_frame); Console::puts("\n");
   unsigned long new_frame = next_free_frame;
 
-  next_free_frame += Machine::PAGE_SIZE;
+  next_free_frame += PAGE_SIZE;
 
   return new_frame;
 

@@ -132,3 +132,17 @@ _threads_low_switch_to:
 	; We'll return to the place where the thread was
 	; executing last.
 	iret
+
+
+; ----------------------------------------------------------------------
+; get_EFLAGS()
+; 
+; Returns value of the EFLAGS status register. 
+;
+; ----------------------------------------------------------------------
+global _get_EFLAGS
+; this function is exported.
+_get_EFLAGS:
+	pushfd			; push eflags
+	pop	eax		; pop contents into eax
+	ret
